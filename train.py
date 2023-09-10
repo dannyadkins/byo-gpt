@@ -53,7 +53,7 @@ def generate_sequence(model: nn.Module, tokenizer, seq_len: int):
         # print("Detokenized most likely ID: ", tokenizer.decode(most_likely_id))
         generated.append(most_likely_id)
     
-    print("Full sequence: ", tokenizer.decode(generated)[:num_tokens])
+    print("Full sequence:\n", tokenizer.decode(generated)[:num_tokens])
 
 def main():
     seq_len=64
