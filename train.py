@@ -20,21 +20,20 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 1, lr: 
     with profile(activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA], record_shapes=True) as prof:
         for epoch in range(epochs):
             for batch in loader:
-                with record_function("load_batch"):
-                    batch = {k: v.to(device) for k, v in batch.items()}
-                    inputs = batch['input_ids']
-                    targets = torch.tensor(inputs[:, 1:])
-                    targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
-                    
+                batch = {k: v.to(device) for k, v in batch.items()}
+                inputs = batch['input_ids']
+                targets = torch.tensor(inputs[:, 1:])
+                targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
+                
                 with record_function("model_forward"):
                     outputs = model(inputs)
-                with record_function("compute_loss"):
-                    loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
-                    print("Loss at epoch ", epoch, ": ", loss.item())
-                with record_function("backward_and_optimize"):
-                    model.zero_grad(set_to_none=True)
-                    loss.backward()
-                    optimizer.step()
+                    
+                loss = criterion(outputs.view(-1, outputs.
+                size(-1)), targets.view(-1))
+                print("Loss at epoch ", epoch, ": ", loss.item())
+                model.zero_grad(set_to_none=True)
+                loss.backward()
+                optimizer.step()
     
     print(prof.key_averages().table(sort_by="cuda_time_total"))
 

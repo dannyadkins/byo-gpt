@@ -47,30 +47,29 @@ class BYOGPT(nn.Module):
         return logits
 
 class PositionalEncodingLayer(nn.Module):
-    def __init__(self, d_model, print_shapes=False):
+    def __init__(self, d_model, max_len=5000, print_shapes=False):
         super().__init__()
         self.d_model = d_model 
         self.n = 10000
 
+        self.pe = self.get_pe(max_len)
+
     # TODO: optimize this calculation using PyTorch, and then potentially optimize with Triton
     def forward(self, x):
         # make an empty matrix of size seq_len x d_model 
-        seq_len = x.shape[1]
+        return x + self.pe[:x.size(1)].requires_grad_(False)
 
-        pe = torch.zeros(seq_len, self.d_model).to(device)
+    def get_pe(self, max_len):
+        pe = torch.zeros(max_len, self.d_model).to(device)
 
-        for k in range(0, seq_len):
+        for k in range(0, max_len):
             for i in range(0, self.d_model//2):
                 theta = k/(self.n**(2*i/self.d_model))
                 pe[k, 2*i] = np.sin(theta)
                 pe[k, 2*i + 1] = np.cos(theta)
         
         # saves to state_dict but doesn't do anything with optimizer 
-        self.register_buffer("pe", pe)          
-
-        # TODO: actually start using the positional encodings
-        return x + pe.requires_grad_(False)
-
+        return pe 
 
 # Implementation of masked/causal self-attention, where each token only attends to previous tokens. 
 class AttentionBlock(nn.Module):
