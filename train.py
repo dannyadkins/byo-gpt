@@ -61,7 +61,7 @@ def main():
     
     dataset = get_train_inputs(tokenizer=tokenizer, seq_len=seq_len)
 
-    model = BYOGPT(vocab_size=tokenizer.vocab_size, print_shapes=False)
+    model = BYOGPT(vocab_size=tokenizer.vocab_size, num_layers=4, print_shapes=False)
     # huggingface model 
     # config = GPT2Config()
     # model = GPT2LMHeadModel(config)

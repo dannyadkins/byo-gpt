@@ -3,7 +3,7 @@ from datasets import load_dataset
 from typing import Literal, Callable, Union, Any, Tuple, Dict 
 import torch 
 import re
-
+import os  
 # def generate_vocab(get_raw_text: Callable[[], str], vocab_size: int = 5000) -> Tuple[Dict, Dict]:
 #     # read vocab from file if there is 
 #     # otherwise generate vocab from data
@@ -32,29 +32,37 @@ import re
 #     return text.replace('\n', ' <eos> ').strip()
 
 def get_train_inputs(tokenizer, seq_len) -> Tuple[torch.Tensor, torch.Tensor]:
-    # dataset = load_dataset("tiny_shakespeare")['train']
-    
-
-    # chunks = []
-    # text = re.split(r'\s+', dataset[0]['text'])
-    # for i in range(0, len(text), seq_len):
-    #     item = text[i:i+seq_len]
-    #     # pad it if needed 
-    #     if len(item) < seq_len:
-    #         item += ' ' * (seq_len - len(item))
-    #     chunks.append(item) 
-
-    # dataset = datasets.Dataset.from_dict({'text': chunks})
-    dataset = load_dataset("bookcorpus", num_proc=1)['train']
-
+    num_proc=12
     def tokenization(x):
         # print type of batch, using typing module
-        return tokenizer(x['text'], truncation=True, max_length=seq_len, is_split_into_words=True)
+        return tokenizer(x['text'], truncation=True, max_length=512, return_overflowing_tokens=False)
+
+    ### TINY SHAKESPEARE 
+    dataset = load_dataset("tiny_shakespeare")['train']
+    chunks = []
+    text = re.split(r'\s+', dataset[0]['text'])
+    for i in range(0, len(text), seq_len):
+        item = text[i:i+seq_len]
+        # pad it if needed 
+        if len(item) < seq_len:
+            item += ' ' * (seq_len - len(item))
+        chunks.append(item) 
+
+    dataset = datasets.Dataset.from_dict({'text': chunks})
+    dataset = dataset.map(tokenization, batched=True, num_proc=num_proc)
+
+    ### BOOKCORPUS CODE 
+    # dataset_path = './bookcorpus'
+
+    # if not os.path.exists(dataset_path):
+    #     dataset = load_dataset("bookcorpus", num_proc=num_proc)['train']
+    #     dataset = dataset.map(tokenization, batched=True, num_proc=num_proc)
+    #     dataset.save_to_disk(dataset_path)
+    # else: 
+    #     dataset = datasets.Dataset.load_from_disk(dataset_path)
     
-    dataset = dataset.map(tokenization, batched=True)
     dataset = dataset.remove_columns(['text'])
     dataset.set_format(type='torch', columns=['input_ids'])
-    
     return dataset
 
 if __name__ == '__main__':
