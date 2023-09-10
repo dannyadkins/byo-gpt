@@ -50,7 +50,7 @@ def main():
     # config = GPT2Config()
     # model = GPT2LMHeadModel(config)
     
-    loader = DataLoader(dataset, batch_size=64, shuffle=True)
+    loader = DataLoader(dataset, batch_size=32, shuffle=True)
 
     model = model.to(device)
     train(model, loader, tokenizer)
