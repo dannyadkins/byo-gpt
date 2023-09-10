@@ -13,7 +13,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 from torch.profiler import profile, record_function
 
-def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr: float = 1e-3):
+def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 10, lr: float = 1e-3):
     model.train()
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()

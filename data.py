@@ -32,18 +32,20 @@ import re
 #     return text.replace('\n', ' <eos> ').strip()
 
 def get_train_inputs(tokenizer, seq_len) -> Tuple[torch.Tensor, torch.Tensor]:
-    dataset = load_dataset("tiny_shakespeare")['train']
+    # dataset = load_dataset("tiny_shakespeare")['train']
+    
 
-    chunks = []
-    text = re.split(r'\s+', dataset[0]['text'])
-    for i in range(0, len(text), seq_len):
-        item = text[i:i+seq_len]
-        # pad it if needed 
-        if len(item) < seq_len:
-            item += ' ' * (seq_len - len(item))
-        chunks.append(item) 
+    # chunks = []
+    # text = re.split(r'\s+', dataset[0]['text'])
+    # for i in range(0, len(text), seq_len):
+    #     item = text[i:i+seq_len]
+    #     # pad it if needed 
+    #     if len(item) < seq_len:
+    #         item += ' ' * (seq_len - len(item))
+    #     chunks.append(item) 
 
-    dataset = datasets.Dataset.from_dict({'text': chunks})
+    # dataset = datasets.Dataset.from_dict({'text': chunks})
+    dataset = load_dataset("bookcorpus", num_proc=1)['train']
 
     def tokenization(x):
         # print type of batch, using typing module
@@ -54,10 +56,6 @@ def get_train_inputs(tokenizer, seq_len) -> Tuple[torch.Tensor, torch.Tensor]:
     dataset.set_format(type='torch', columns=['input_ids'])
     
     return dataset
-
-def detokenize(token_ids):
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    return tokenizer.decode(token_ids, skip_special_tokens=True)
 
 if __name__ == '__main__':
     dataset = get_train_inputs(seq_len=128)
