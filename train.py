@@ -12,38 +12,58 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 from torch.profiler import profile, record_function
 
-def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 1, lr: float = 1e-3):
+def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 10, lr: float = 1e-3):
     model.train()
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
     
-    with profile(activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA], record_shapes=True) as prof:
-        for epoch in range(epochs):
-            for batch in loader:
-                batch = {k: v.to(device) for k, v in batch.items()}
-                inputs = batch['input_ids']
-                targets = torch.tensor(inputs[:, 1:])
-                targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
-                
-                with record_function("model_forward"):
-                    outputs = model(inputs)
-                    
-                loss = criterion(outputs.view(-1, outputs.
-                size(-1)), targets.view(-1))
-                print("Loss at epoch ", epoch, ": ", loss.item())
-                model.zero_grad(set_to_none=True)
-                loss.backward()
-                optimizer.step()
+    for epoch in range(epochs):
+        for batch in loader:
+            batch = {k: v.to(device) for k, v in batch.items()}
+            inputs = batch['input_ids']
+            targets = torch.tensor(inputs[:, 1:])
+            targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
+            
+            outputs = model(inputs)
+
+            loss = criterion(outputs.view(-1, outputs.
+            size(-1)), targets.view(-1))
+            print("Loss at epoch ", epoch, ": ", loss.item())
+            model.zero_grad(set_to_none=True)
+            loss.backward()
+            optimizer.step()
+        generate_sequence(model, tokenizer, inputs.shape[1])
+
     
-    print(prof.key_averages().table(sort_by="cuda_time_total"))
+    
 
 def evaluate(model: nn.Module):
     pass
 
+def generate_sequence(model: nn.Module, tokenizer, seq_len: int):
+    start_token_id = tokenizer.encode("My")[0]
+    print("Start token id: ", start_token_id)
+    generated = [start_token_id]
+    num_tokens = 20
+
+    # sample most likely over and over
+    for idx in range(0, num_tokens):
+        input_seq = torch.tensor([generated + ([0] * (seq_len - len(generated) - 1))]).to(device)
+        output = model(input_seq)
+        last = output[0, idx]
+        most_likely_id = torch.argmax(last)
+        # print("Most likely ID: ", most_likely_id)
+        # print("Detokenized most likely ID: ", tokenizer.decode(most_likely_id))
+        generated.append(most_likely_id)
+    
+    print("Full sequence: ", tokenizer.decode(generated)[:num_tokens])
+
+
 def main():
+    seq_len=64
     tokenizer = AutoTokenizer.from_pretrained("gpt2", add_prefix_space=True)
     
-    dataset = get_train_inputs(tokenizer=tokenizer, seq_len=64)
+    dataset = get_train_inputs(tokenizer=tokenizer, seq_len=seq_len)
 
     model = BYOGPT(vocab_size=tokenizer.vocab_size, print_shapes=False)
     # huggingface model 
