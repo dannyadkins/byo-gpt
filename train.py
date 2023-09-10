@@ -5,6 +5,7 @@ from torch.optim import Adam
 from models.byo_gpt import BYOGPT
 from data import get_train_inputs
 from transformers import AutoTokenizer
+import random
 
 torch.cuda.empty_cache()
 
@@ -12,7 +13,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 from torch.profiler import profile, record_function
 
-def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 10, lr: float = 1e-3):
+def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr: float = 1e-3):
     model.train()
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
@@ -26,25 +27,21 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 10, lr:
             
             outputs = model(inputs)
 
-            loss = criterion(outputs.view(-1, outputs.
-            size(-1)), targets.view(-1))
-            print("Loss at epoch ", epoch, ": ", loss.item())
+            loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+            # print("Loss at epoch ", epoch, ": ", loss.item())
             model.zero_grad(set_to_none=True)
             loss.backward()
             optimizer.step()
+        print("Epoch ", epoch, " done with loss ", loss.item())
         generate_sequence(model, tokenizer, inputs.shape[1])
-
-    
-    
 
 def evaluate(model: nn.Module):
     pass
 
 def generate_sequence(model: nn.Module, tokenizer, seq_len: int):
-    start_token_id = tokenizer.encode("My")[0]
-    print("Start token id: ", start_token_id)
+    start_token_id = random.randint(0, 50000)
     generated = [start_token_id]
-    num_tokens = 20
+    num_tokens = 64
 
     # sample most likely over and over
     for idx in range(0, num_tokens):
@@ -57,7 +54,6 @@ def generate_sequence(model: nn.Module, tokenizer, seq_len: int):
         generated.append(most_likely_id)
     
     print("Full sequence: ", tokenizer.decode(generated)[:num_tokens])
-
 
 def main():
     seq_len=64
