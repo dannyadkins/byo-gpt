@@ -25,11 +25,12 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 1, lr: 
                     inputs = batch['input_ids']
                     targets = torch.tensor(inputs[:, 1:])
                     targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
-                
+                    
                 with record_function("model_forward"):
                     outputs = model(inputs)
                 with record_function("compute_loss"):
                     loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+                    print("Loss at epoch ", epoch, ": ", loss.item())
                 with record_function("backward_and_optimize"):
                     model.zero_grad(set_to_none=True)
                     loss.backward()
