@@ -8,7 +8,7 @@ import numpy as np
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class BYOGPT(nn.Module):
-    def __init__(self, vocab_size, d_model=128, num_layers=1, print_shapes=False):
+    def __init__(self, vocab_size, d_model=128, num_layers=1, num_heads=1, print_shapes=False):
         print("Initializing BYOGPT with vocab size: {}".format(vocab_size))
         super().__init__()
         self.vocab_size = vocab_size
@@ -19,10 +19,9 @@ class BYOGPT(nn.Module):
         self.pos_encoding = PositionalEncodingLayer(d_model=self.d_model, print_shapes=print_shapes)
 
         self.attn_blocks = nn.ModuleList([
-            AttentionBlock(d_model=self.d_model) for _ in range(self.num_layers)
+            AttentionBlock(d_model=self.d_model, num_heads=num_heads) for _ in range(self.num_layers)
         ])
         self.unembed = nn.Linear(self.d_model, self.vocab_size)
-
 
         self.print_shapes = print_shapes
     
@@ -45,6 +44,9 @@ class BYOGPT(nn.Module):
         logits = self.unembed(x)
 
         return logits
+    
+    def __version__(self):
+        return "1.0-singlehead"
 
 class PositionalEncodingLayer(nn.Module):
     def __init__(self, d_model, max_len=5000, print_shapes=False):
@@ -73,7 +75,7 @@ class PositionalEncodingLayer(nn.Module):
 
 # Implementation of masked/causal self-attention, where each token only attends to previous tokens. 
 class AttentionBlock(nn.Module):
-    def __init__(self, d_model: int, num_heads: int = 1): 
+    def __init__(self, d_model: int, num_heads: int = 1, max_seq_len: int = 10000): 
         super().__init__()
         self.d_model = d_model  
         self.num_heads = num_heads 
@@ -82,33 +84,42 @@ class AttentionBlock(nn.Module):
         self.wk = nn.Linear(d_model, d_model)
         self.wv = nn.Linear(d_model, d_model)
 
-        self.softmax = nn.Softmax(dim=2)
+        self.d_head = d_model // num_heads
+
+        self.softmax = nn.Softmax(dim=-1)
 
         self.norm1 = nn.LayerNorm(d_model)
         self.linear1 = nn.Linear(d_model, d_model)
 
         self.norm2 = nn.LayerNorm(d_model) 
 
+        attn_mask = torch.tril(torch.ones((max_seq_len, max_seq_len))).view(1,1,max_seq_len,max_seq_len)
+        self.register_buffer("attn_mask", attn_mask)
+
     
     def forward(self, x):
         # embed in q, k, v 
-        q = self.wq(x)
-        k = self.wk(x)
-        v = self.wv(x)
+        q = self.wq(x).view(x.size(0), -1, self.num_heads, self.d_head).permute(0, 2, 1, 3)
+        k = self.wk(x).view(x.size(0), -1, self.num_heads, self.d_head).permute(0, 2, 1, 3)
+        v = self.wv(x).view(x.size(0), -1, self.num_heads, self.d_head).permute(0, 2, 1, 3)
 
         # compute attention scores
         # [batch_size * seq_len * seq_len]
         # for each position's key, what is its relevance to each other position's query 
-        scores = (q @ k.transpose(1,2))/torch.sqrt(torch.tensor(self.d_model)) 
+        # transpose k to be seq_len, d_head, num_heads dimension? still works yeah, basically q is multiplying dotwise for each head vs for each sample 
+        scores = (q @ k.transpose(-2, -1))/torch.sqrt(torch.tensor(self.d_head)) 
+
+        seq_len = x.size(1)
+
+        scores = scores.masked_fill(self.attn_mask[:, :, :seq_len, :seq_len] == 0, float('-inf'))
+
         scores = self.softmax(scores)
 
         # for each seq, do the calculation softmax((q * kT)/sqrt(d_model))*v 
-        attention = torch.bmm(scores, v)
+        attention = scores @ v 
 
-        # apply attention mask 
-        attention = torch.stack([torch.tril(attention[i]) for i in range(0, attention.shape[0])])
+        attention = attention.transpose(1,2).contiguous().view(-1, seq_len, self.num_heads*self.d_head)
         
-        # add back to input 
         x = x + attention 
 
         # layernorm 

@@ -99,6 +99,8 @@ def run_experiment(model_func, train_func, eval_func, fixed_params, variable_par
                 avg_avg_loss = total_avg_loss/runs_per_var 
                 print("Average loss over all runs: ", avg_avg_loss)
 
+                model_version = model.__version__()
+
 
 def main(model_path):
     seq_len=64
@@ -109,7 +111,8 @@ def main(model_path):
     train_loader = DataLoader(dataset['train'], batch_size=32, shuffle=True)
     test_loader = DataLoader(dataset['test'])
     
-    # model = BYOGPT(vocab_size=tokenizer.vocab_size, num_layers=1, )
+    model = BYOGPT(vocab_size=tokenizer.vocab_size, num_layers=1, num_heads=4)
+    model = model.to(device)
 
     # if (model_path):
     #     print("Loading model from file ", model_path)
@@ -135,10 +138,10 @@ def main(model_path):
     
     variable_params = {"train": { "clip_grad_norm": [True, False]}}
 
-    run_experiment(model_func=BYOGPT, train_func=train, eval_func=evaluate, fixed_params=fixed_params, variable_params=variable_params, runs_per_var=5)
+    # run_experiment(model_func=BYOGPT, train_func=train, eval_func=evaluate, fixed_params=fixed_params, variable_params=variable_params, runs_per_var=5)
 
-    # train(model, loader=train_loader, tokenizer=tokenizer)
-    # evaluate(model, loader=test_loader, tokenizer=tokenizer)
+    train(model, loader=train_loader, tokenizer=tokenizer)
+    evaluate(model, loader=test_loader, tokenizer=tokenizer)
     # save model and any experiment info 
 
 if __name__ == '__main__':
