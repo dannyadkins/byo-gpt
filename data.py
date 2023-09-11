@@ -31,44 +31,53 @@ import os
 # def preprocess_text(text: str) -> str:
 #     return text.replace('\n', ' <eos> ').strip()
 
-def get_train_inputs(tokenizer, seq_len: int):
+def get_and_preprocess_dataset(dataset_name, tokenizer, seq_len: int, test_split = 0.2):
     num_proc=12
 
+
     ### TINY SHAKESPEARE 
-    # def tokenization(x):
-    #     # print type of batch, using typing module
-    #     return tokenizer(x['text'], truncation=True, max_length=seq_len, is_split_into_words=True)
+    if (dataset_name == "tiny_shakespeare"):
+        def tokenization(x):
+            # print type of batch, using typing module
+            return tokenizer(x['text'], truncation=True, max_length=seq_len, is_split_into_words=True)
 
-    # dataset = load_dataset("tiny_shakespeare")['train']
-    # chunks = []
-    # text = re.split(r'\s+', dataset[0]['text'])
-    # for i in range(0, len(text), seq_len):
-    #     item = text[i:i+seq_len]
-    #     # pad it if needed 
-    #     if len(item) < seq_len:
-    #         item += ' ' * (seq_len - len(item))
-    #     chunks.append(item) 
+        dataset = load_dataset("tiny_shakespeare")['train']
+        chunks = []
+        text = re.split(r'\s+', dataset[0]['text'])
+        for i in range(0, len(text), seq_len):
+            item = text[i:i+seq_len]
+            # pad it if needed 
+            if len(item) < seq_len:
+                item += ' ' * (seq_len - len(item))
+            chunks.append(item) 
 
-    # dataset = datasets.Dataset.from_dict({'text': chunks})
-    # dataset = dataset.map(tokenization, batched=True)
+        dataset = datasets.Dataset.from_dict({'text': chunks})
+        dataset = dataset.map(tokenization, batched=True)
+    elif (dataset_name == "bookcorpus"):
+        ### BOOKCORPUS CODE 
+        def tokenization(x):
+            # print type of batch, using typing module
+            return tokenizer(x['text'], truncation=True, max_length=64, return_overflowing_tokens=False, padding=True)
 
-    ### BOOKCORPUS CODE 
-    def tokenization(x):
-        # print type of batch, using typing module
-        return tokenizer(x['text'], truncation=True, max_length=64, return_overflowing_tokens=False, padding=True)
+        dataset_path = './datasets/bookcorpus'
 
-    dataset_path = './datasets/bookcorpus'
+        if not os.path.exists(dataset_path):
+            dataset = load_dataset("bookcorpus", num_proc=num_proc)['train']
+            dataset = dataset.map(tokenization, batched=True, num_proc=num_proc)
+            dataset.save_to_disk(dataset_path)
+        else: 
+            dataset = datasets.Dataset.load_from_disk(dataset_path)
 
-    if not os.path.exists(dataset_path):
-        dataset = load_dataset("bookcorpus", num_proc=num_proc)['train']
-        dataset = dataset.map(tokenization, batched=True, num_proc=num_proc)
-        dataset.save_to_disk(dataset_path)
-    else: 
-        dataset = datasets.Dataset.load_from_disk(dataset_path)
-    
+    ### 
     dataset = dataset.remove_columns(['text'])
+    
+    # select test_split% 
     dataset.set_format(type='torch', columns=['input_ids'])
-    return dataset
+    dataset = dataset.train_test_split(test_size=test_split)
+    print("Dataset: ", dataset)
+    
+    # train_set = datasets.Dataset.from_dict(dataset[(int(dataset.num_rows*test_split)):])
+    # print("Train_set size: ", train_set.num_rows)
+    # test_set = datasets.Dataset.from_dict(dataset[:int(dataset.num_rows*test_split)])
+    return dataset 
 
-if __name__ == '__main__':
-    dataset = get_train_inputs(seq_len=128)
