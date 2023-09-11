@@ -87,7 +87,7 @@ def run_experiment(model_func, train_func, eval_func, fixed_params, variable_par
             for param_value in param_possible_values:
                 total_avg_loss = 0
                 print("Running experiment: ", param_name, " = ", param_value)
-                for i in runs_per_var:
+                for i in range(runs_per_var):
                     fixed_params[param_func][param_name] = param_value
 
                     model = model_func(**fixed_params["model"]).to(device)
