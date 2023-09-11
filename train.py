@@ -17,7 +17,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 from torch.profiler import profile, record_function
 
-def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 10, lr: float = 1e-3):
+def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr: float = 1e-3):
     model.train()
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
@@ -26,7 +26,7 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 10, lr:
         for batch in loader:
             batch = {k: v.to(device) for k, v in batch.items()}
             inputs = batch['input_ids']
-            targets = torch.tensor(inputs[:, 1:])
+            targets = torch.tensor(inputs.clone().detach()[:, 1:])
             targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
             
             outputs = model(inputs)
@@ -35,6 +35,8 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 10, lr:
             # print("Loss at epoch ", epoch, ": ", loss.item())
             model.zero_grad(set_to_none=True)
             loss.backward()
+
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
         print("Epoch ", epoch, " done with loss ", loss.item())
         generate_sequence(model, tokenizer, inputs.shape[1])
