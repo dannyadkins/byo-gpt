@@ -32,8 +32,12 @@ import os
 #     return text.replace('\n', ' <eos> ').strip()
 
 def get_and_preprocess_dataset(dataset_name, tokenizer, seq_len: int, test_split = 0.2):
-    num_proc=12
+    num_proc=8
+    override_cache=True
 
+    special_tokens_dict = {"pad_token": "<PAD>"}
+    num_tokens_added = tokenizer.add_special_tokens(special_tokens_dict)
+    print("Added tokens: ", num_tokens_added)
 
     ### TINY SHAKESPEARE 
     if (dataset_name == "tiny_shakespeare"):
@@ -57,13 +61,15 @@ def get_and_preprocess_dataset(dataset_name, tokenizer, seq_len: int, test_split
         ### BOOKCORPUS CODE 
         def tokenization(x):
             # print type of batch, using typing module
-            return tokenizer(x['text'], truncation=True, max_length=64, return_overflowing_tokens=False, padding=True)
+            return tokenizer(x['text'], truncation=True, max_length=64, return_overflowing_tokens=False, padding="max_length", add_special_tokens=True)
 
         dataset_path = './datasets/bookcorpus'
 
-        if not os.path.exists(dataset_path):
+        if not os.path.exists(dataset_path) or override_cache:
             dataset = load_dataset("bookcorpus", num_proc=num_proc)['train']
-            dataset = dataset.map(tokenization, batched=True, num_proc=num_proc)
+            print("Tokenizing dataset...")
+            dataset = datasets.Dataset.from_dict(dataset[:100]).map(tokenization, batched=True, num_proc=num_proc)
+            print("Done tokenizing. Saving...")
             dataset.save_to_disk(dataset_path)
         else: 
             dataset = datasets.Dataset.load_from_disk(dataset_path)
@@ -72,7 +78,7 @@ def get_and_preprocess_dataset(dataset_name, tokenizer, seq_len: int, test_split
     dataset = dataset.remove_columns(['text'])
     
     # select test_split% 
-    dataset.set_format(type='torch', columns=['input_ids'])
+    dataset.set_format(type='torch', columns=['input_ids', "attention_mask"])
     dataset = dataset.train_test_split(test_size=test_split)
     print("Dataset: ", dataset)
     

@@ -26,9 +26,13 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr:
         for batch in loader:
             batch = {k: v.to(device) for k, v in batch.items()}
             inputs = batch['input_ids']
+            padding_mask = batch["attention_mask"]
+
             targets = inputs.clone().detach()[:, 1:]
             targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
-            
+
+            targets[padding_mask == 0] = -100
+
             outputs = model(inputs)
 
             loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
@@ -39,25 +43,29 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
         print("Epoch ", epoch, " done with loss ", loss.item())
-        # generate_sequence(model, tokenizer, inputs.shape[1])
+        generate_sequence(model, tokenizer, inputs.shape[1])
 
 def evaluate(model: nn.Module, loader: DataLoader, tokenizer):
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(ignore_index=-100)
 
     total_loss = torch.tensor(0.0)
     num_batches = 0
     for batch in loader:
         batch = { k: v.to(device) for k,v in batch.items()}
         inputs = batch['input_ids']
+        padding_mask = batch["attention_mask"]
+
         targets = inputs.clone().detach()[:, 1:]
         targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
+        
+        targets[padding_mask == 0] = -100
         
         outputs = model(inputs)
 
         loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
         num_batches+=1
         total_loss+=loss.item()
-    # print("Average loss: ", total_loss/num_batches)
+    print("Average loss: ", total_loss/num_batches)
     return (total_loss/num_batches).item()
 
 def generate_sequence(model: nn.Module, tokenizer, seq_len: int, k=1, temperature=1):
@@ -103,15 +111,16 @@ def run_experiment(model_func, train_func, eval_func, fixed_params, variable_par
 
 
 def main(model_path):
-    seq_len=64
-    dataset_name="tiny_shakespeare"
+    seq_len=128
+    dataset_name="bookcorpus"
     tokenizer = AutoTokenizer.from_pretrained("gpt2", add_prefix_space=True)
     
     dataset = get_and_preprocess_dataset(dataset_name=dataset_name, tokenizer=tokenizer, seq_len=seq_len, test_split=0.2)
     train_loader = DataLoader(dataset['train'], batch_size=32, shuffle=True)
     test_loader = DataLoader(dataset['test'])
     
-    model = BYOGPT(vocab_size=tokenizer.vocab_size, num_layers=1, num_heads=4)
+
+    model = BYOGPT(vocab_size=len(tokenizer), num_layers=1, num_heads=8, d_model=128)
     model = model.to(device)
 
     # if (model_path):

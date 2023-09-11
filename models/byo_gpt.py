@@ -111,7 +111,9 @@ class AttentionBlock(nn.Module):
 
         seq_len = x.size(1)
 
-        scores = scores.masked_fill(self.attn_mask[:, :, :seq_len, :seq_len] == 0, float('-inf'))
+        mask = self.attn_mask == 0
+
+        scores = scores.masked_fill(mask[:, :, :seq_len, :seq_len] == 0, float('-inf'))
 
         scores = self.softmax(scores)
 
