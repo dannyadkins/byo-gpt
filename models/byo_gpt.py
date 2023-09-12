@@ -29,7 +29,7 @@ class BYOGPT(nn.Module):
     Input: [batch_size x seq_len]
     Output: [batch_size x seq_len x vocab_size] (odds of each next word at each position)
     """
-    def forward(self, x):
+    def forward(self, x, padding_mask=None):
         x = self.embed(x) # [batch_size x seq_len]
         if self.print_shapes:
             print("Embed shape: ", x.shape)
@@ -38,7 +38,7 @@ class BYOGPT(nn.Module):
             print("After pos_embed shape: ", x.shape)
 
         for attn_block in self.attn_blocks:
-            x = attn_block(x)
+            x = attn_block(x, padding_mask=padding_mask)
         
         # get the logits and logprobs 
         logits = self.unembed(x)
@@ -97,7 +97,7 @@ class AttentionBlock(nn.Module):
         self.register_buffer("attn_mask", attn_mask)
 
     
-    def forward(self, x):
+    def forward(self, x, padding_mask=None):
         # embed in q, k, v 
         q = self.wq(x).view(x.size(0), -1, self.num_heads, self.d_head).permute(0, 2, 1, 3)
         k = self.wk(x).view(x.size(0), -1, self.num_heads, self.d_head).permute(0, 2, 1, 3)
@@ -111,9 +111,13 @@ class AttentionBlock(nn.Module):
 
         seq_len = x.size(1)
 
-        mask = self.attn_mask == 0
+        mask = self.attn_mask[:, :, :seq_len, :seq_len]
+        # if (padding_mask is not None):
+        #     padding_mask = padding_mask.unsqueeze(1).unsqueeze(3).transpose(-2, -1)
 
-        scores = scores.masked_fill(mask[:, :, :seq_len, :seq_len] == 0, float('-inf'))
+        #     mask = mask + padding_mask
+
+        scores = scores.masked_fill(mask == 0, float('-inf'))
 
         scores = self.softmax(scores)
 
