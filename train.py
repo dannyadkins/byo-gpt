@@ -26,7 +26,8 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr:
     model.train()
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
-    
+    scaler = torch.cuda.amp.GradScaler()
+
     for epoch in range(epochs):
         for batch in loader:
             batch = {k: v.to(device) for k, v in batch.items()}
@@ -37,19 +38,23 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr:
             targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
 
             # targets[padding_mask == 0] = -100
+            with torch.autocast(device_type='cuda', dtype=torch.float16):
+                outputs = model(inputs, padding_mask=padding_mask)
 
-            outputs = model(inputs, padding_mask=padding_mask)
-
-            loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
+                loss = criterion(outputs.view(-1, outputs.size(-1)), targets.view(-1))
             # print("Loss at epoch ", epoch, ": ", loss.item())
             model.zero_grad(set_to_none=True)
-            loss.backward()
+            scaler.scale(loss).backward()
+
             if (clip_grad_norm):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            
+            scaler.step(optimizer)
+            scaler.update()
+
         print("Epoch ", epoch, " done with loss ", loss.item())
         generate_sequence(model, tokenizer, inputs.shape[1])
-        save_model(model, "model1")
+        save_model(model, "model1-mixedprecision")
 
 def evaluate(model: nn.Module, loader: DataLoader, tokenizer):
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
