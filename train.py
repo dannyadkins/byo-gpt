@@ -16,6 +16,8 @@ torch.cuda.empty_cache()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+is_data_parallel = True
+
 from torch.profiler import profile, record_function
 
 def save_model(model, name):
@@ -30,12 +32,15 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr:
 
     for epoch in range(epochs):
         for batch in loader:
-            batch = {k: v.to(device) for k, v in batch.items()}
+            if (not is_data_parallel):
+                batch = {k: v.to(device) for k, v in batch.items()}
             inputs = batch['input_ids']
             padding_mask = batch["attention_mask"]
 
             targets = inputs.clone().detach()[:, 1:]
-            targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id).to(targets.device)], dim=1)
+            targets = torch.cat([targets, torch.full((targets.size(0), 1), tokenizer.eos_token_id)], dim=1)
+            
+            targets = targets.to(device)
 
             # targets[padding_mask == 0] = -100
             with torch.autocast(device_type='cuda', dtype=torch.float16):
@@ -121,7 +126,7 @@ def run_experiment(model_func, train_func, eval_func, fixed_params, variable_par
 
 def main(model_path="model1"):
     seq_len=128
-    dataset_name="bookcorpus"
+    dataset_name="tiny_shakespeare"
     tokenizer = AutoTokenizer.from_pretrained("gpt2", add_prefix_space=True)
     
     dataset = get_and_preprocess_dataset(dataset_name=dataset_name, tokenizer=tokenizer, seq_len=seq_len, test_split=0.2)
@@ -139,6 +144,9 @@ def main(model_path="model1"):
         except Exception as e:
             print("Error loading model: ", e)
     
+    if (is_data_parallel):
+        model = torch.nn.DataParallel(model, device_ids=[i for i in range(0, torch.cuda.device_count())])
+
     fixed_params = {
         "train": { 
             "loader": train_loader,

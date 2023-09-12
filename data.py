@@ -66,7 +66,7 @@ def get_and_preprocess_dataset(dataset_name, tokenizer, seq_len: int, test_split
         dataset_path = './datasets/bookcorpus'
 
         if not os.path.exists(dataset_path) or override_cache:
-            dataset = load_dataset("bookcorpus", num_proc=num_proc)['train']
+            dataset = load_dataset("bookcorpus")['train']
             print("Tokenizing dataset...")
             dataset = datasets.Dataset.from_dict(dataset[:100000]).map(tokenization, batched=True, num_proc=num_proc)
             print("Done tokenizing. Saving...")

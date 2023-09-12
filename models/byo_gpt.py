@@ -59,6 +59,8 @@ class PositionalEncodingLayer(nn.Module):
     # TODO: optimize this calculation using PyTorch, and then potentially optimize with Triton
     def forward(self, x):
         # make an empty matrix of size seq_len x d_model 
+        if (self.pe.device != x.device):
+            self.pe = self.pe.to(x.device)
         return x + self.pe[:x.size(1)].requires_grad_(False)
 
     def get_pe(self, max_len):
