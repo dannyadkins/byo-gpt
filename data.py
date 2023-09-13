@@ -61,14 +61,14 @@ def get_and_preprocess_dataset(dataset_name, tokenizer, seq_len: int, test_split
         ### BOOKCORPUS CODE 
         def tokenization(x):
             # print type of batch, using typing module
-            return tokenizer(x['text'], truncation=True, max_length=64, return_overflowing_tokens=False, padding="max_length", add_special_tokens=True)
+            return tokenizer(x['text'], truncation=True, max_length=seq_len, return_overflowing_tokens=False, padding="max_length", add_special_tokens=True)
 
         dataset_path = './datasets/bookcorpus'
 
         if not os.path.exists(dataset_path) or override_cache:
             dataset = load_dataset("bookcorpus")['train']
             print("Tokenizing dataset...")
-            dataset = datasets.Dataset.from_dict(dataset[:100000]).map(tokenization, batched=True, num_proc=num_proc)
+            dataset = datasets.Dataset.from_dict(dataset[:5000000]).map(tokenization, batched=True, num_proc=num_proc)
             print("Done tokenizing. Saving...")
             dataset.save_to_disk(dataset_path)
         else: 

@@ -6,6 +6,7 @@ from models.byo_gpt import BYOGPT
 from data import get_and_preprocess_dataset
 from transformers import AutoTokenizer
 import random
+from datetime import datetime
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -24,7 +25,7 @@ def save_model(model, name):
     torch.save(model.state_dict(), "./weights/" + name)
 
 
-def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr: float = 1e-3, clip_grad_norm=True):
+def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr: float = 1e-3, clip_grad_norm=True, model_name="model1"):
     model.train()
     optimizer = Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
@@ -34,6 +35,7 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr:
         for batch in loader:
             if (not is_data_parallel):
                 batch = {k: v.to(device) for k, v in batch.items()}
+            
             inputs = batch['input_ids']
             padding_mask = batch["attention_mask"]
 
@@ -59,7 +61,7 @@ def train(model: nn.Module, loader: DataLoader, tokenizer, epochs: int = 20, lr:
 
         print("Epoch ", epoch, " done with loss ", loss.item())
         generate_sequence(model, tokenizer, inputs.shape[1])
-        save_model(model, "model1-mixedprecision")
+        save_model(model, model_name)
 
 def evaluate(model: nn.Module, loader: DataLoader, tokenizer):
     criterion = nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
@@ -124,17 +126,16 @@ def run_experiment(model_func, train_func, eval_func, fixed_params, variable_par
                 model_version = model.__version__()
 
 
-def main(model_path="model1"):
-    seq_len=128
-    dataset_name="tiny_shakespeare"
+def main(model_path=''):
+    seq_len=90
+    dataset_name="bookcorpus"
     tokenizer = AutoTokenizer.from_pretrained("gpt2", add_prefix_space=True)
     
     dataset = get_and_preprocess_dataset(dataset_name=dataset_name, tokenizer=tokenizer, seq_len=seq_len, test_split=0.2)
-    train_loader = DataLoader(dataset['train'], batch_size=64, shuffle=True)
+    train_loader = DataLoader(dataset['train'], batch_size=256, shuffle=True)
     test_loader = DataLoader(dataset['test'])
-    
 
-    model = BYOGPT(vocab_size=len(tokenizer), num_layers=3, num_heads=8, d_model=128)
+    model = BYOGPT(vocab_size=len(tokenizer), num_layers=12, num_heads=8, d_model=256)
     model = model.to(device)
     print(sum(p.numel() for p in model.parameters()), " total params")
 
@@ -168,7 +169,8 @@ def main(model_path="model1"):
 
     # run_experiment(model_func=BYOGPT, train_func=train, eval_func=evaluate, fixed_params=fixed_params, variable_params=variable_params, runs_per_var=5)
 
-    train(model, loader=train_loader, tokenizer=tokenizer)
+    model_name = f"model_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    train(model, loader=train_loader, tokenizer=tokenizer, model_name=model_name)
     evaluate(model, loader=test_loader, tokenizer=tokenizer)
     # save model and any experiment info 
 
